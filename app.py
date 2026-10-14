@@ -59,10 +59,17 @@ if st.button("Analyze News", type="primary"):
             else:
                 st.success("🟢 Prediction: Real News")
 
-            st.metric(
-                "Model Confidence",
-                f"{confidence:.2f}%"
-            )
+            st.metric("Model Confidence", f"{confidence:.2f}%")
+
+st.subheader("Class Probabilities")
+
+for class_label, probability in zip(
+    model.classes_,
+    probabilities
+):
+    label = "Fake News" if int(class_label) == 0 else "Real News"
+    st.write(f"{label}: {probability * 100:.2f}%")
+    st.progress(int(round(probability * 100)))
 
             st.progress(
                 min(100, max(0, int(round(confidence))))
