@@ -61,11 +61,27 @@ if st.button("Analyze News", type="primary"):
         else:
             st.success("🟢 Prediction: Real News")
 
-        st.metric(
-            "Model Confidence",
-            f"{confidence:.2f}%"
-        )
-        st.progress(int(round(confidence)))
+        
+st.metric(
+    "Model Confidence",
+    f"{confidence:.2f}%"
+)
+
+st.progress(min(100, max(0, int(round(confidence)))))
+
+if confidence < 60:
+    st.warning(
+        "Low confidence: The model is uncertain about this prediction."
+    )
+elif confidence < 80:
+    st.info(
+        "Moderate confidence: Verify this headline using reliable sources."
+    )
+else:
+    st.success(
+        "Higher model confidence, but independent verification is still needed."
+    )
+
 
         st.caption(
             "This percentage is the model's estimated probability "
