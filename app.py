@@ -1,9 +1,11 @@
 
 
 
+
 import streamlit as st
 import joblib
 from pathlib import Path
+import html
 
 # --------------------------------------------------
 # PAGE CONFIGURATION
@@ -15,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-MODEL_PATH = Path(__file__).parent / "truthcheck_model.pkl"
+MODEL_PATH = Path(__file__).resolve().parent / "truthcheck_model.pkl"
 
 
 # --------------------------------------------------
@@ -23,10 +25,19 @@ MODEL_PATH = Path(__file__).parent / "truthcheck_model.pkl"
 # --------------------------------------------------
 @st.cache_resource
 def load_model():
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(
+            f"Model file not found: {MODEL_PATH}"
+        )
     return joblib.load(MODEL_PATH)
 
 
-model = load_model()
+try:
+    model = load_model()
+except Exception as error:
+    st.error("Unable to load the TruthCheck model.")
+    st.code(str(error))
+    st.stop()
 
 
 # --------------------------------------------------
@@ -35,12 +46,14 @@ model = load_model()
 st.markdown("""
 <style>
 .stApp {
-    background: linear-gradient(135deg, #07111F 0%, #0B1728 55%, #101E32 100%);
+    background: linear-gradient(
+        135deg, #07111F 0%, #0B1728 55%, #101E32 100%
+    );
     color: #EAF2FF;
 }
 
 .block-container {
-    max-width: 1050px;
+    max-width: 1100px;
     padding-top: 2rem;
     padding-bottom: 3rem;
 }
@@ -77,7 +90,7 @@ p, label, .stMarkdown {
     border-radius: 16px;
     padding: 22px;
     margin: 10px 0;
-    min-height: 125px;
+    min-height: 130px;
 }
 
 .tc-label {
@@ -99,6 +112,16 @@ p, label, .stMarkdown {
     color: #9FB2C9;
     font-size: 0.88rem;
     line-height: 1.6;
+}
+
+.tc-keyword {
+    background: #122941;
+    border: 1px solid #284763;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 7px 0;
+    color: #EAF2FF;
+    overflow-wrap: anywhere;
 }
 
 div.stButton > button[kind="primary"] {
@@ -173,8 +196,8 @@ with header_left:
     st.markdown("# 🔎 TruthCheck")
     st.markdown(
         '<div class="tc-subtitle">'
-        'Analyze a news headline with Machine Learning. '
-        'Explore the prediction and confidence score.'
+        'Analyze a news headline using Machine Learning. '
+        'Explore the prediction, confidence score, and influential words.'
         '</div>',
         unsafe_allow_html=True
     )
@@ -197,7 +220,9 @@ st.divider()
 # --------------------------------------------------
 st.markdown("## Analyze a headline")
 st.markdown(
-    '<p class="tc-muted">Paste the headline you want to analyze below.</p>',
+    '<p class="tc-muted">'
+    'Paste the headline you want to analyze below.'
+    '</p>',
     unsafe_allow_html=True
 )
 
@@ -223,19 +248,25 @@ if analyze:
         text = headline.strip()
 
         try:
+            # Make prediction
             prediction = int(model.predict([text])[0])
             probabilities = model.predict_proba([text])[0]
 
             classes = list(model.classes_)
             predicted_index = classes.index(prediction)
-            confidence = float(probabilities[predicted_index]) * 100
+
+            confidence = (
+                float(probabilities[predicted_index]) * 100
+            )
 
             # ------------------------------------------
-            # ANALYSIS RESULTS: TWO COLUMNS ONLY
+            # ANALYSIS RESULTS
             # ------------------------------------------
             st.markdown("## Analysis Results")
 
-            result_col, confidence_col = st.columns(2, gap="medium")
+            result_col, confidence_col = st.columns(
+                2, gap="medium"
+            )
 
             with result_col:
                 if prediction == 0:
@@ -255,6 +286,9 @@ if analyze:
                             font-weight:750;
                             margin-top:12px;
                         ">{prediction_text}</div>
+                        <div class="tc-muted">
+                            Classification based on the headline
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -265,13 +299,17 @@ if analyze:
                     f"""
                     <div class="tc-card">
                         <div class="tc-label">MODEL CONFIDENCE</div>
-                        <div class="tc-value">{confidence:.2f}%</div>
+                        <div class="tc-value">
+                            {confidence:.2f}%
+                        </div>
+                        <div class="tc-muted">
+                            Confidence in the predicted class
+                        </div>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
 
-            # Confidence progress bar
             st.progress(
                 min(1.0, max(0.0, confidence / 100))
             )
@@ -297,6 +335,95 @@ if analyze:
                 "This score reflects the model's prediction, "
                 "not whether the news is factually true."
             )
+
+            # ------------------------------------------
+            # KEYWORD INFLUENCE
+            # ------------------------------------------
+            st.markdown("## 🔍 Keyword Influence")
+
+            st.markdown(
+                '<p class="tc-muted">'
+                'Words associated with the model’s learned classification.'
+                '</p>',
+                unsafe_allow_html=True
+            )
+
+            try:
+                tfidf = model.named_steps["tfidf"]
+                classifier = model.named_steps["classifier"]
+
+                vector = tfidf.transform([text])
+                feature_names = tfidf.get_feature_names_out()
+                coefficients = classifier.coef_[0]
+
+                contributions = (
+                    vector.multiply(coefficients).toarray()[0]
+                )
+
+                present_indices = vector.nonzero()[1]
+                rows = []
+
+                for idx in present_indices:
+                    contribution = float(contributions[idx])
+
+                    if contribution > 0:
+                        direction = "Real News"
+                    elif contribution < 0:
+                        direction = "Fake News"
+                    else:
+                        continue
+
+                    rows.append({
+                        "keyword": feature_names[idx],
+                        "influence": abs(contribution),
+                        "direction": direction
+                    })
+
+                rows.sort(
+                    key=lambda item: item["influence"],
+                    reverse=True
+                )
+
+                if rows:
+                    for item in rows[:5]:
+                        if item["direction"] == "Real News":
+                            color = "#35D5A0"
+                        else:
+                            color = "#FF8585"
+
+                        safe_keyword = html.escape(
+                            item["keyword"]
+                        )
+                        safe_direction = html.escape(
+                            item["direction"]
+                        )
+
+                        st.markdown(
+                            f'<div class="tc-keyword">'
+                            f'<span style="font-weight:700;">'
+                            f'{safe_keyword}</span>'
+                            f'<span style="float:right;color:{color};'
+                            f'font-weight:700;">'
+                            f'{safe_direction}</span>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+                else:
+                    st.info(
+                        "No matching keyword features were found "
+                        "for this headline."
+                    )
+
+                st.caption(
+                    "These are model-specific word associations, "
+                    "not proof that a story is fake or real."
+                )
+
+            except Exception as keyword_error:
+                st.warning(
+                    "Keyword explanation is unavailable for this model."
+                )
+                st.caption(str(keyword_error))
 
             # ------------------------------------------
             # VERIFICATION REMINDER
