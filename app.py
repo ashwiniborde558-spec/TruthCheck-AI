@@ -1,135 +1,7 @@
 
-
-from pathlib import Path
-
-import joblib
-import streamlit as st
-
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(
-    page_title="TruthCheck AI",
-    page_icon="🔎",
-    layout="wide",
-)
-
-# ---------------- CUSTOM DESIGN ----------------
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background-color: #08111f;
-        color: #e8f1ff;
-    }
-
-    .block-container {
-        max-width: 1100px;
-        padding-top: 2rem;
-    }
-
-    h1, h2, h3, p, label {
-        color: #e8f1ff;
-    }
-
-    .tc-card {
-        background: #111f33;
-        border: 1px solid #24415e;
-        border-radius: 16px;
-        padding: 24px;
-        min-height: 145px;
-        margin-bottom: 16px;
-        overflow-wrap: anywhere;
-    }
-
-    .tc-label {
-        color: #64d9ff;
-        font-size: 14px;
-        font-weight: 600;
-        margin-bottom: 12px;
-    }
-
-    .tc-value {
-        color: #ffffff;
-        font-size: 27px;
-        font-weight: 700;
-        margin: 0;
-    }
-
-    .tc-small {
-        color: #b7c7dc;
-        font-size: 14px;
-        margin-top: 10px;
-    }
-
-    div.stButton > button {
-        background-color: #00b8d9;
-        color: #06111f;
-        border: none;
-        border-radius: 10px;
-        font-weight: 700;
-        min-height: 45px;
-        width: 100%;
-    }
-
-    div.stButton > button:hover {
-        background-color: #65e2ff;
-        color: #06111f;
-    }
-
-    textarea {
-        background-color: #111f33 !important;
-        color: #ffffff !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ---------------- LOAD MODEL ----------------
-MODEL_PATH = Path(__file__).parent / "truthcheck_model.pkl"
-
-
-@st.cache_resource
-def load_model():
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(
-            f"Model file not found: {MODEL_PATH.name}. "
-            "Ensure it is in the same repository folder as app.py."
-        )
-    return joblib.load(MODEL_PATH)
-
-
-try:
-    model = load_model()
-except Exception as error:
-    st.error(f"Could not load the model: {error}")
-    st.stop()
-
-# ---------------- HEADER ----------------
-st.markdown(
-    """
-    <h1 style="text-align:center;">🔎 TruthCheck AI</h1>
-    <p style="text-align:center; color:#64d9ff;">
-        AI-powered news headline classification
-    </p>
-    """,
-    unsafe_allow_html=True,
-)
-
-st.write(
-    "Enter a news headline below to classify it using the trained machine-learning model."
-)
-
-# ---------------- INPUT ----------------
-headline = st.text_area(
-    "News headline",
-    placeholder="Paste a news headline here...",
-    height=150,
-    key="headline_input",
-)
-
-analyze = st.button("Analyze News", use_container_width=True)
-
 # ---------------- PREDICTION ----------------
+import html
+
 if analyze:
     text = headline.strip()
 
@@ -138,27 +10,76 @@ if analyze:
     else:
         try:
             prediction = int(model.predict([text])[0])
-
             probabilities = model.predict_proba([text])[0]
             classes = list(model.classes_)
             predicted_index = classes.index(prediction)
-
             confidence = float(probabilities[predicted_index]) * 100
 
             if prediction == 0:
                 result_title = "⚠️ Fake News"
-                result_description = (
-                    "The model classified this headline as fake."
-                )
+                result_description = "Classified as Fake"
             else:
                 result_title = "✅ Real News"
-                result_description = (
-                    "The model classified this headline as real."
-                )
+                result_description = "Classified as Real"
 
+            # Calculate keyword influences
+            keyword_items = []
+
+            if (
+                hasattr(model, "named_steps")
+                and "tfidf" in model.named_steps
+                and "classifier" in model.named_steps
+            ):
+                tfidf = model.named_steps["tfidf"]
+                classifier = model.named_steps["classifier"]
+
+                if hasattr(classifier, "coef_"):
+                    vector = tfidf.transform([text])
+                    feature_names = tfidf.get_feature_names_out()
+                    coefficients = classifier.coef_[0]
+
+                    contributions = (
+                        vector.multiply(coefficients).toarray()[0]
+                    )
+                    present_indices = vector.nonzero()[1]
+
+                    ranked_indices = sorted(
+                        present_indices,
+                        key=lambda i: abs(contributions[i]),
+                        reverse=True,
+                    )[:5]
+
+                    for i in ranked_indices:
+                        word = html.escape(str(feature_names[i]))
+                        impact = contributions[i]
+
+                        if impact < 0:
+                            label = "Associated with Fake"
+                            symbol = "🔴"
+                        elif impact > 0:
+                            label = "Associated with Real"
+                            symbol = "🟢"
+                        else:
+                            label = "Neutral"
+                            symbol = "⚪"
+
+                        keyword_items.append(
+                            f"""
+                            <div class="tc-keyword">
+                                <strong>{symbol} {word}</strong>
+                                <span>{label}</span>
+                            </div>
+                            """
+                        )
+
+            # Dashboard heading
             st.markdown("## Analysis Results")
 
-            result_col, confidence_col = st.columns(2, gap="medium")
+            # Three-column dashboard
+            result_col, confidence_col, keyword_col = st.columns(
+                [1, 1, 1.25],
+                gap="medium",
+            )
 
             with result_col:
                 st.markdown(
@@ -179,72 +100,101 @@ if analyze:
                         <div class="tc-label">MODEL CONFIDENCE</div>
                         <p class="tc-value">{confidence:.2f}%</p>
                         <p class="tc-small">
-                            Confidence in the predicted class, not proof of truth.
+                            Confidence in the predicted class
                         </p>
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-            st.progress(
-                max(0.0, min(1.0, confidence / 100.0))
-            )
+                st.progress(
+                    max(0.0, min(1.0, confidence / 100.0))
+                )
 
-            # -------- WORD INFLUENCE --------
-            if (
-                hasattr(model, "named_steps")
-                and "tfidf" in model.named_steps
-                and "classifier" in model.named_steps
-            ):
-                tfidf = model.named_steps["tfidf"]
-                classifier = model.named_steps["classifier"]
+            with keyword_col:
+                keyword_html = "".join(keyword_items)
 
-                if hasattr(classifier, "coef_"):
-                    vector = tfidf.transform([text])
-                    feature_names = tfidf.get_feature_names_out()
-                    coefficients = classifier.coef_[0]
-
-                    contributions = (
-                        vector.multiply(coefficients).toarray()[0]
+                if not keyword_html:
+                    keyword_html = (
+                        '<p class="tc-small">'
+                        'No keyword influences available.</p>'
                     )
 
-                    present_indices = vector.nonzero()[1]
+                st.markdown(
+                    f"""
+                    <div class="tc-card">
+                        <div class="tc-label">
+                            KEYWORD INFLUENCE
+                        </div>
+                        {keyword_html}
+                        <p class="tc-small">
+                            Learned word associations, not proof.
+                        </p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-                    ranked_indices = sorted(
-                        present_indices,
-                        key=lambda index: abs(contributions[index]),
-                        reverse=True,
-                    )[:5]
+            st.markdown(
+                """
+                <style>
+                .tc-card {
+                    background: #111f33;
+                    border: 1px solid #24415e;
+                    border-radius: 14px;
+                    padding: 18px;
+                    min-height: 190px;
+                    overflow-wrap: anywhere;
+                }
 
-                    st.markdown("### Words influencing the prediction")
+                .tc-label {
+                    color: #64d9ff;
+                    font-size: 13px;
+                    font-weight: 700;
+                    margin-bottom: 14px;
+                }
 
-                    if ranked_indices:
-                        for index in ranked_indices:
-                            word = feature_names[index]
-                            impact = contributions[index]
+                .tc-value {
+                    color: #ffffff;
+                    font-size: 23px;
+                    font-weight: 700;
+                    margin: 10px 0;
+                }
 
-                            if impact > 0:
-                                direction = "associated with Real"
-                            elif impact < 0:
-                                direction = "associated with Fake"
-                            else:
-                                direction = "neutral"
+                .tc-small {
+                    color: #b7c7dc;
+                    font-size: 12px;
+                    margin-top: 12px;
+                }
 
-                            st.write(
-                                f"- **{word}** — {direction}"
-                            )
-                    else:
-                        st.info(
-                            "No recognized headline features were found."
-                        )
+                .tc-keyword {
+                    border-bottom: 1px solid #29415a;
+                    padding: 9px 0;
+                    font-size: 13px;
+                }
 
-            # -------- DISCLAIMER --------
+                .tc-keyword strong {
+                    display: block;
+                    color: #f0f6ff;
+                    margin-bottom: 4px;
+                }
+
+                .tc-keyword span {
+                    color: #b7c7dc;
+                    font-size: 11px;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
             st.info(
-                "Important: This is a machine-learning classification, "
-                "not independent fact-checking. The model was trained on "
-                "news headlines and may make mistakes. Verify claims using "
-                "reliable news sources and original evidence."
+                "Important: This model classifies headlines based on "
+                "patterns learned during training. It does not independently "
+                "verify whether a story is true. Check reliable sources."
             )
 
         except Exception as error:
             st.error(f"Analysis failed: {error}")
+
+
