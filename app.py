@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 import joblib
 from pathlib import Path
@@ -39,10 +40,8 @@ headline = st.text_area(
 )
 
 if st.button("Analyze News", type="primary"):
-
     if not headline.strip():
         st.warning("Please enter a headline first.")
-
     else:
         text = headline.strip()
 
@@ -60,17 +59,6 @@ if st.button("Analyze News", type="primary"):
                 st.success("🟢 Prediction: Real News")
 
             st.metric("Model Confidence", f"{confidence:.2f}%")
-
-st.subheader("Class Probabilities")
-
-for class_label, probability in zip(
-    model.classes_,
-    probabilities
-):
-    label = "Fake News" if int(class_label) == 0 else "Real News"
-    st.write(f"{label}: {probability * 100:.2f}%")
-    st.progress(int(round(probability * 100)))
-
             st.progress(
                 min(100, max(0, int(round(confidence))))
             )
@@ -96,8 +84,7 @@ for class_label, probability in zip(
                 "not whether the news is factually true."
             )
 
-            # Explain influential words using TF-IDF
-            # values and Logistic Regression coefficients.
+            # Keyword influence
             try:
                 tfidf = model.named_steps["tfidf"]
                 classifier = model.named_steps["classifier"]
@@ -109,7 +96,6 @@ for class_label, probability in zip(
                 contributions = (
                     vector.multiply(coefficients).toarray()[0]
                 )
-
                 present_indices = vector.nonzero()[1]
 
                 rows = []
@@ -125,13 +111,13 @@ for class_label, probability in zip(
                         continue
 
                     rows.append({
-                        "Keyword / Feature": feature_names[idx],
-                        "Influence": abs(contribution),
-                        "Direction": direction
+                        "keyword": feature_names[idx],
+                        "influence": abs(contribution),
+                        "direction": direction
                     })
 
                 rows.sort(
-                    key=lambda item: item["Influence"],
+                    key=lambda item: item["influence"],
                     reverse=True
                 )
 
@@ -140,8 +126,8 @@ for class_label, probability in zip(
                 if rows:
                     for item in rows[:5]:
                         st.write(
-                            f"**{item['Keyword / Feature']}** "
-                            f"→ {item['Direction']}"
+                            f"**{item['keyword']}** "
+                            f"→ {item['direction']}"
                         )
                 else:
                     st.write(
@@ -149,9 +135,9 @@ for class_label, probability in zip(
                     )
 
                 st.caption(
-                    "Keyword influence shows how words contribute "
-                    "to the model's learned classification. It does "
-                    "not prove a news story is fake or real."
+                    "Keyword influence reflects the model's learned "
+                    "word associations. It does not prove a story "
+                    "is fake or real."
                 )
 
             except Exception:
@@ -160,7 +146,6 @@ for class_label, probability in zip(
                 )
 
             st.subheader("⚠️ Verification Reminder")
-
             st.write(
                 "Check important claims against reliable news sources, "
                 "official statements, and independent fact-checkers."
@@ -169,6 +154,4 @@ for class_label, probability in zip(
         except Exception as error:
             st.error("Unable to analyze this headline.")
             st.exception(error)
-
-
 
