@@ -84,9 +84,8 @@ else:
 
 
         st.caption(
-            "This percentage is the model's estimated probability "
-            "for its selected class, not the probability that the "
-            "news is factually true."
+           "This score reflects the model's prediction, "
+            "not whether the news is factually true."
         )
 
         # Explain influential words using TF-IDF
