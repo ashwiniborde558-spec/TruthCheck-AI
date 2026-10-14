@@ -19,7 +19,7 @@ MODEL_PATH = Path(__file__).parent / "truthcheck_model.pkl"
 
 
 # --------------------------------------------------
-# LOAD EXISTING MODEL - NO RETRAINING
+# LOAD EXISTING MODEL
 # --------------------------------------------------
 @st.cache_resource
 def load_model():
@@ -30,7 +30,7 @@ model = load_model()
 
 
 # --------------------------------------------------
-# DARK NAVY + CYAN UI
+# DARK NAVY + CYAN DESIGN
 # --------------------------------------------------
 st.markdown("""
 <style>
@@ -72,11 +72,14 @@ p, label, .stMarkdown {
 }
 
 .tc-card {
+    box-sizing: border-box;
     background: rgba(15, 33, 53, 0.92);
     border: 1px solid #263E58;
     border-radius: 16px;
-    padding: 22px;
-    margin: 10px 0;
+    padding: 20px;
+    min-height: 145px;
+    height: 100%;
+    margin: 0;
 }
 
 .tc-label {
@@ -85,13 +88,6 @@ p, label, .stMarkdown {
     font-weight: 700;
     letter-spacing: 1.3px;
     text-transform: uppercase;
-}
-
-.tc-value {
-    color: #35D5F2;
-    font-size: 1.7rem;
-    font-weight: 750;
-    margin-top: 8px;
 }
 
 .tc-muted {
@@ -139,10 +135,9 @@ div.stButton > button[kind="primary"]:hover {
 }
 
 div[data-testid="stMetric"] {
-    background: #0F2135;
-    border: 1px solid #263E58;
-    padding: 18px;
-    border-radius: 14px;
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 
 div[data-testid="stMetricLabel"] {
@@ -178,7 +173,9 @@ with header_left:
         '<div class="tc-eyebrow">AI-powered news analysis</div>',
         unsafe_allow_html=True
     )
+
     st.markdown("# 🔎 TruthCheck")
+
     st.markdown(
         '<div class="tc-subtitle">'
         'Analyze a news headline with Machine Learning. '
@@ -190,7 +187,7 @@ with header_left:
 
 with header_right:
     st.markdown(
-        '<div class="tc-card" style="text-align:center;">'
+        '<div class="tc-card" style="text-align:center;min-height:145px;">'
         '<div style="font-size:2rem;">🛡️</div>'
         '<div style="color:#35D5F2;font-weight:700;">ML</div>'
         '<div class="tc-muted">Analysis</div>'
@@ -205,8 +202,11 @@ st.divider()
 # HEADLINE INPUT
 # --------------------------------------------------
 st.markdown("## Analyze a headline")
+
 st.markdown(
-    '<p class="tc-muted">Paste the headline you want to analyze below.</p>',
+    '<p class="tc-muted">'
+    'Paste the headline you want to analyze below.'
+    '</p>',
     unsafe_allow_html=True
 )
 
@@ -222,7 +222,6 @@ analyze = st.button("🔍  Analyze News", type="primary")
 
 # --------------------------------------------------
 # PREDICTION
-# Original prediction logic is preserved
 # --------------------------------------------------
 if analyze:
 
@@ -233,60 +232,102 @@ if analyze:
         text = headline.strip()
 
         try:
+            # Existing prediction logic preserved
             prediction = int(model.predict([text])[0])
             probabilities = model.predict_proba([text])[0]
 
             classes = list(model.classes_)
             predicted_index = classes.index(prediction)
-            confidence = float(probabilities[predicted_index]) * 100
+
+            confidence = (
+                float(probabilities[predicted_index]) * 100
+            )
 
             st.markdown("## Analysis Results")
 
-            result_col, confidence_col = st.columns(2)
+            # Determine the displayed prediction
+            if prediction == 0:
+                result_title = "🔴 Fake News"
+                result_color = "#FF7777"
+            else:
+                result_title = "🟢 Real News"
+                result_color = "#35D5A0"
+
+            # ------------------------------------------
+            # BALANCED RESULT CARDS
+            # ------------------------------------------
+            result_col, confidence_col = st.columns(
+                [1, 1],
+                gap="medium"
+            )
 
             with result_col:
                 st.markdown(
-                    '<div class="tc-card">'
-                    '<div class="tc-label">Model Prediction</div>',
+                    f"""
+                    <div class="tc-card">
+                        <div class="tc-label">
+                            Model Prediction
+                        </div>
+
+                        <div style="
+                            color:{result_color};
+                            font-size:1.55rem;
+                            font-weight:750;
+                            margin-top:12px;
+                        ">
+                            {result_title}
+                        </div>
+
+                        <div class="tc-muted" style="margin-top:8px;">
+                            Model classification
+                        </div>
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
 
-                if prediction == 0:
-                    st.markdown(
-                        '<div style="color:#FF7777;font-size:1.6rem;'
-                        'font-weight:750;margin-top:8px;">'
-                        '🔴 Fake News</div>',
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown(
-                        '<div style="color:#35D5A0;font-size:1.6rem;'
-                        'font-weight:750;margin-top:8px;">'
-                        '🟢 Real News</div>',
-                        unsafe_allow_html=True
-                    )
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
             with confidence_col:
-                st.metric(
-                    "Model Confidence",
-                    f"{confidence:.2f}%"
+                st.markdown(
+                    f"""
+                    <div class="tc-card">
+                        <div class="tc-label">
+                            Model Confidence
+                        </div>
+
+                        <div style="
+                            color:#35D5F2;
+                            font-size:1.8rem;
+                            font-weight:750;
+                            margin-top:10px;
+                        ">
+                            {confidence:.2f}%
+                        </div>
+
+                        <div class="tc-muted" style="margin-top:8px;">
+                            Estimated class probability
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
+
                 st.progress(
                     min(100, max(0, int(round(confidence))))
                 )
 
+            # Confidence message
             if confidence < 60:
                 st.warning(
                     "Low confidence: The model is uncertain "
                     "about this prediction."
                 )
+
             elif confidence < 80:
                 st.info(
                     "Moderate confidence: Verify this headline "
                     "using reliable sources."
                 )
+
             else:
                 st.success(
                     "Higher model confidence, but independent "
@@ -300,9 +341,9 @@ if analyze:
 
             # ------------------------------------------
             # KEYWORD INFLUENCE
-            # Same TF-IDF and Logistic Regression method
             # ------------------------------------------
             st.markdown("## 🔍 Keyword Influence")
+
             st.markdown(
                 '<p class="tc-muted">'
                 'Words associated with the model’s learned classification.'
@@ -349,6 +390,7 @@ if analyze:
 
                 if rows:
                     for item in rows[:5]:
+
                         if item["direction"] == "Real News":
                             color = "#35D5A0"
                         else:
@@ -364,6 +406,7 @@ if analyze:
                             f'</div>',
                             unsafe_allow_html=True
                         )
+
                 else:
                     st.info(
                         "No matching keyword features were found."
@@ -385,12 +428,13 @@ if analyze:
             st.markdown("## ⚠️ Verification Reminder")
 
             st.markdown(
-                '<div class="tc-card">'
+                '<div class="tc-card" style="min-height:0;">'
                 '<div class="tc-muted">'
                 'Check important claims against reliable news sources, '
                 'official statements, and independent fact-checkers. '
                 'TruthCheck does not independently verify news facts.'
-                '</div></div>',
+                '</div>'
+                '</div>',
                 unsafe_allow_html=True
             )
 
