@@ -1,18 +1,26 @@
 
 
+
 import streamlit as st
 import joblib
 from pathlib import Path
 
+# --------------------------------------------------
+# PAGE CONFIGURATION
+# --------------------------------------------------
 st.set_page_config(
-    page_title="TruthCheck",
+    page_title="TruthCheck | AI News Analysis",
     page_icon="🔎",
-    layout="centered"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 MODEL_PATH = Path(__file__).parent / "truthcheck_model.pkl"
 
 
+# --------------------------------------------------
+# LOAD EXISTING MODEL - NO RETRAINING
+# --------------------------------------------------
 @st.cache_resource
 def load_model():
     return joblib.load(MODEL_PATH)
@@ -20,28 +28,207 @@ def load_model():
 
 model = load_model()
 
-st.title("🔎 TruthCheck")
-st.subheader("AI-Powered Fake News Detection")
 
-st.write(
-    "Analyze a news headline using Machine Learning. "
-    "View the prediction, confidence score, and influential keywords."
-)
+# --------------------------------------------------
+# DARK NAVY + CYAN UI
+# --------------------------------------------------
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(135deg, #07111F 0%, #0B1728 55%, #101E32 100%);
+    color: #EAF2FF;
+}
 
-st.info(
-    "This tool predicts patterns learned from its training dataset. "
-    "It does not independently verify whether a claim is true."
+.block-container {
+    max-width: 1050px;
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+}
+
+[data-testid="stHeader"] {
+    background: transparent;
+}
+
+h1, h2, h3 {
+    color: #F2F7FF !important;
+}
+
+p, label, .stMarkdown {
+    color: #C3D2E5;
+}
+
+.tc-eyebrow {
+    color: #35D5F2;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.tc-subtitle {
+    color: #A7BAD1;
+    font-size: 1rem;
+    line-height: 1.7;
+}
+
+.tc-card {
+    background: rgba(15, 33, 53, 0.92);
+    border: 1px solid #263E58;
+    border-radius: 16px;
+    padding: 22px;
+    margin: 10px 0;
+}
+
+.tc-label {
+    color: #91A9C4;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 1.3px;
+    text-transform: uppercase;
+}
+
+.tc-value {
+    color: #35D5F2;
+    font-size: 1.7rem;
+    font-weight: 750;
+    margin-top: 8px;
+}
+
+.tc-muted {
+    color: #9FB2C9;
+    font-size: 0.88rem;
+    line-height: 1.6;
+}
+
+.tc-keyword {
+    background: #122941;
+    border: 1px solid #284763;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 7px 0;
+    color: #EAF2FF;
+}
+
+div.stButton > button[kind="primary"] {
+    background: #35D5F2;
+    color: #06111F;
+    border: none;
+    border-radius: 10px;
+    min-height: 3rem;
+    font-weight: 750;
+    width: 100%;
+    transition: 0.2s ease;
+}
+
+div.stButton > button[kind="primary"]:hover {
+    background: #80E9FA;
+    color: #06111F;
+    border: none;
+}
+
+.stTextArea textarea {
+    background: #0B192A !important;
+    color: #F2F7FF !important;
+    border: 1px solid #304861 !important;
+    border-radius: 12px !important;
+}
+
+.stTextArea textarea:focus {
+    border-color: #35D5F2 !important;
+    box-shadow: 0 0 0 1px #35D5F2 !important;
+}
+
+div[data-testid="stMetric"] {
+    background: #0F2135;
+    border: 1px solid #263E58;
+    padding: 18px;
+    border-radius: 14px;
+}
+
+div[data-testid="stMetricLabel"] {
+    color: #9FB2C9;
+}
+
+div[data-testid="stMetricValue"] {
+    color: #35D5F2;
+}
+
+div[data-testid="stProgressBar"] > div > div {
+    background-color: #35D5F2;
+}
+
+hr {
+    border-color: #263E58;
+}
+
+footer {
+    visibility: hidden;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# --------------------------------------------------
+# HEADER
+# --------------------------------------------------
+header_left, header_right = st.columns([5, 1])
+
+with header_left:
+    st.markdown(
+        '<div class="tc-eyebrow">AI-powered news analysis</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown("# 🔎 TruthCheck")
+    st.markdown(
+        '<div class="tc-subtitle">'
+        'Analyze a news headline with Machine Learning. '
+        'Explore the prediction, confidence score, and '
+        'influential words.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+with header_right:
+    st.markdown(
+        '<div class="tc-card" style="text-align:center;">'
+        '<div style="font-size:2rem;">🛡️</div>'
+        '<div style="color:#35D5F2;font-weight:700;">ML</div>'
+        '<div class="tc-muted">Analysis</div>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+st.divider()
+
+
+# --------------------------------------------------
+# HEADLINE INPUT
+# --------------------------------------------------
+st.markdown("## Analyze a headline")
+st.markdown(
+    '<p class="tc-muted">Paste the headline you want to analyze below.</p>',
+    unsafe_allow_html=True
 )
 
 headline = st.text_area(
-    "Enter News Headline",
-    placeholder="Type or paste a news headline here...",
-    height=120
+    "News headline",
+    placeholder="Example: Scientists announce a new research discovery...",
+    height=125,
+    label_visibility="collapsed"
 )
 
-if st.button("Analyze News", type="primary"):
+analyze = st.button("🔍  Analyze News", type="primary")
+
+
+# --------------------------------------------------
+# PREDICTION
+# Original prediction logic is preserved
+# --------------------------------------------------
+if analyze:
+
     if not headline.strip():
         st.warning("Please enter a headline first.")
+
     else:
         text = headline.strip()
 
@@ -53,15 +240,42 @@ if st.button("Analyze News", type="primary"):
             predicted_index = classes.index(prediction)
             confidence = float(probabilities[predicted_index]) * 100
 
-            if prediction == 0:
-                st.error("🔴 Prediction: Fake News")
-            else:
-                st.success("🟢 Prediction: Real News")
+            st.markdown("## Analysis Results")
 
-            st.metric("Model Confidence", f"{confidence:.2f}%")
-            st.progress(
-                min(100, max(0, int(round(confidence))))
-            )
+            result_col, confidence_col = st.columns(2)
+
+            with result_col:
+                st.markdown(
+                    '<div class="tc-card">'
+                    '<div class="tc-label">Model Prediction</div>',
+                    unsafe_allow_html=True
+                )
+
+                if prediction == 0:
+                    st.markdown(
+                        '<div style="color:#FF7777;font-size:1.6rem;'
+                        'font-weight:750;margin-top:8px;">'
+                        '🔴 Fake News</div>',
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        '<div style="color:#35D5A0;font-size:1.6rem;'
+                        'font-weight:750;margin-top:8px;">'
+                        '🟢 Real News</div>',
+                        unsafe_allow_html=True
+                    )
+
+                st.markdown("</div>", unsafe_allow_html=True)
+
+            with confidence_col:
+                st.metric(
+                    "Model Confidence",
+                    f"{confidence:.2f}%"
+                )
+                st.progress(
+                    min(100, max(0, int(round(confidence))))
+                )
 
             if confidence < 60:
                 st.warning(
@@ -84,7 +298,18 @@ if st.button("Analyze News", type="primary"):
                 "not whether the news is factually true."
             )
 
-            # Keyword influence
+            # ------------------------------------------
+            # KEYWORD INFLUENCE
+            # Same TF-IDF and Logistic Regression method
+            # ------------------------------------------
+            st.markdown("## 🔍 Keyword Influence")
+            st.markdown(
+                '<p class="tc-muted">'
+                'Words associated with the model’s learned classification.'
+                '</p>',
+                unsafe_allow_html=True
+            )
+
             try:
                 tfidf = model.named_steps["tfidf"]
                 classifier = model.named_steps["classifier"]
@@ -96,6 +321,7 @@ if st.button("Analyze News", type="primary"):
                 contributions = (
                     vector.multiply(coefficients).toarray()[0]
                 )
+
                 present_indices = vector.nonzero()[1]
 
                 rows = []
@@ -121,23 +347,31 @@ if st.button("Analyze News", type="primary"):
                     reverse=True
                 )
 
-                st.subheader("🔍 Keyword Influence")
-
                 if rows:
                     for item in rows[:5]:
-                        st.write(
-                            f"**{item['keyword']}** "
-                            f"→ {item['direction']}"
+                        if item["direction"] == "Real News":
+                            color = "#35D5A0"
+                        else:
+                            color = "#FF8585"
+
+                        st.markdown(
+                            f'<div class="tc-keyword">'
+                            f'<span style="font-weight:700;">'
+                            f'{item["keyword"]}</span>'
+                            f'<span style="float:right;color:{color};'
+                            f'font-weight:700;">'
+                            f'{item["direction"]}</span>'
+                            f'</div>',
+                            unsafe_allow_html=True
                         )
                 else:
-                    st.write(
+                    st.info(
                         "No matching keyword features were found."
                     )
 
                 st.caption(
-                    "Keyword influence reflects the model's learned "
-                    "word associations. It does not prove a story "
-                    "is fake or real."
+                    "These are model-specific word associations, "
+                    "not proof that a story is fake or real."
                 )
 
             except Exception:
@@ -145,13 +379,35 @@ if st.button("Analyze News", type="primary"):
                     "Keyword explanation is unavailable for this model."
                 )
 
-            st.subheader("⚠️ Verification Reminder")
-            st.write(
-                "Check important claims against reliable news sources, "
-                "official statements, and independent fact-checkers."
+            # ------------------------------------------
+            # VERIFICATION REMINDER
+            # ------------------------------------------
+            st.markdown("## ⚠️ Verification Reminder")
+
+            st.markdown(
+                '<div class="tc-card">'
+                '<div class="tc-muted">'
+                'Check important claims against reliable news sources, '
+                'official statements, and independent fact-checkers. '
+                'TruthCheck does not independently verify news facts.'
+                '</div></div>',
+                unsafe_allow_html=True
             )
 
         except Exception as error:
             st.error("Unable to analyze this headline.")
             st.exception(error)
 
+
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
+st.divider()
+
+st.markdown(
+    '<div style="text-align:center;color:#7187A1;font-size:0.8rem;">'
+    'TruthCheck · Machine Learning Project · '
+    'Predictions require independent verification'
+    '</div>',
+    unsafe_allow_html=True
+)
