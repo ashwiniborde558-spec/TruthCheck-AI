@@ -1,5 +1,6 @@
 
 
+
 import streamlit as st
 import joblib
 from pathlib import Path
@@ -76,6 +77,7 @@ p, label, .stMarkdown {
     border-radius: 16px;
     padding: 22px;
     margin: 10px 0;
+    min-height: 125px;
 }
 
 .tc-label {
@@ -90,22 +92,13 @@ p, label, .stMarkdown {
     color: #35D5F2;
     font-size: 1.7rem;
     font-weight: 750;
-    margin-top: 8px;
+    margin-top: 12px;
 }
 
 .tc-muted {
     color: #9FB2C9;
     font-size: 0.88rem;
     line-height: 1.6;
-}
-
-.tc-keyword {
-    background: #122941;
-    border: 1px solid #284763;
-    border-radius: 10px;
-    padding: 12px 14px;
-    margin: 7px 0;
-    color: #EAF2FF;
 }
 
 div.stButton > button[kind="primary"] {
@@ -181,8 +174,7 @@ with header_left:
     st.markdown(
         '<div class="tc-subtitle">'
         'Analyze a news headline with Machine Learning. '
-        'Explore the prediction, confidence score, and '
-        'influential words.'
+        'Explore the prediction and confidence score.'
         '</div>',
         unsafe_allow_html=True
     )
@@ -221,7 +213,6 @@ analyze = st.button("🔍  Analyze News", type="primary")
 
 # --------------------------------------------------
 # PREDICTION
-# Original prediction logic is preserved
 # --------------------------------------------------
 if analyze:
 
@@ -239,43 +230,53 @@ if analyze:
             predicted_index = classes.index(prediction)
             confidence = float(probabilities[predicted_index]) * 100
 
+            # ------------------------------------------
+            # ANALYSIS RESULTS: TWO COLUMNS ONLY
+            # ------------------------------------------
             st.markdown("## Analysis Results")
 
-            result_col, confidence_col = st.columns(2)
+            result_col, confidence_col = st.columns(2, gap="medium")
 
             with result_col:
+                if prediction == 0:
+                    prediction_text = "🔴 Fake News"
+                    prediction_color = "#FF7777"
+                else:
+                    prediction_text = "🟢 Real News"
+                    prediction_color = "#35D5A0"
+
                 st.markdown(
-                    '<div class="tc-card">'
-                    '<div class="tc-label">Model Prediction</div>',
+                    f"""
+                    <div class="tc-card">
+                        <div class="tc-label">MODEL PREDICTION</div>
+                        <div style="
+                            color:{prediction_color};
+                            font-size:1.7rem;
+                            font-weight:750;
+                            margin-top:12px;
+                        ">{prediction_text}</div>
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
 
-                if prediction == 0:
-                    st.markdown(
-                        '<div style="color:#FF7777;font-size:1.6rem;'
-                        'font-weight:750;margin-top:8px;">'
-                        '🔴 Fake News</div>',
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown(
-                        '<div style="color:#35D5A0;font-size:1.6rem;'
-                        'font-weight:750;margin-top:8px;">'
-                        '🟢 Real News</div>',
-                        unsafe_allow_html=True
-                    )
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
             with confidence_col:
-                st.metric(
-                    "Model Confidence",
-                    f"{confidence:.2f}%"
-                )
-                st.progress(
-                    min(100, max(0, int(round(confidence))))
+                st.markdown(
+                    f"""
+                    <div class="tc-card">
+                        <div class="tc-label">MODEL CONFIDENCE</div>
+                        <div class="tc-value">{confidence:.2f}%</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
                 )
 
+            # Confidence progress bar
+            st.progress(
+                min(1.0, max(0.0, confidence / 100))
+            )
+
+            # Confidence message
             if confidence < 60:
                 st.warning(
                     "Low confidence: The model is uncertain "
@@ -296,87 +297,6 @@ if analyze:
                 "This score reflects the model's prediction, "
                 "not whether the news is factually true."
             )
-
-            # ------------------------------------------
-            # KEYWORD INFLUENCE
-            # Same TF-IDF and Logistic Regression method
-            # ------------------------------------------
-            st.markdown("## 🔍 Keyword Influence")
-            st.markdown(
-                '<p class="tc-muted">'
-                'Words associated with the model’s learned classification.'
-                '</p>',
-                unsafe_allow_html=True
-            )
-
-            try:
-                tfidf = model.named_steps["tfidf"]
-                classifier = model.named_steps["classifier"]
-
-                vector = tfidf.transform([text])
-                feature_names = tfidf.get_feature_names_out()
-                coefficients = classifier.coef_[0]
-
-                contributions = (
-                    vector.multiply(coefficients).toarray()[0]
-                )
-
-                present_indices = vector.nonzero()[1]
-
-                rows = []
-
-                for idx in present_indices:
-                    contribution = float(contributions[idx])
-
-                    if contribution > 0:
-                        direction = "Real News"
-                    elif contribution < 0:
-                        direction = "Fake News"
-                    else:
-                        continue
-
-                    rows.append({
-                        "keyword": feature_names[idx],
-                        "influence": abs(contribution),
-                        "direction": direction
-                    })
-
-                rows.sort(
-                    key=lambda item: item["influence"],
-                    reverse=True
-                )
-
-                if rows:
-                    for item in rows[:5]:
-                        if item["direction"] == "Real News":
-                            color = "#35D5A0"
-                        else:
-                            color = "#FF8585"
-
-                        st.markdown(
-                            f'<div class="tc-keyword">'
-                            f'<span style="font-weight:700;">'
-                            f'{item["keyword"]}</span>'
-                            f'<span style="float:right;color:{color};'
-                            f'font-weight:700;">'
-                            f'{item["direction"]}</span>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
-                else:
-                    st.info(
-                        "No matching keyword features were found."
-                    )
-
-                st.caption(
-                    "These are model-specific word associations, "
-                    "not proof that a story is fake or real."
-                )
-
-            except Exception:
-                st.warning(
-                    "Keyword explanation is unavailable for this model."
-                )
 
             # ------------------------------------------
             # VERIFICATION REMINDER
